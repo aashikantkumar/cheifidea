@@ -1,0 +1,457 @@
+{
+  "info": {
+    "name": "cheifidea API",
+    "description": "Postman collection for cheifidea backend APIs (users, chefs, public, bookings).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000/api/v1" },
+    { "key": "userEmail", "value": "user1@example.com" },
+    { "key": "userPassword", "value": "Pass@123" },
+    { "key": "chefEmail", "value": "chef1@example.com" },
+    { "key": "chefPassword", "value": "Pass@123" },
+    { "key": "chefId", "value": "" },
+    { "key": "dishId", "value": "" },
+    { "key": "bookingId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Register User (form-data)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "fullName", "value": "Demo User", "type": "text" },
+                { "key": "email", "value": "{{userEmail}}", "type": "text" },
+                { "key": "username", "value": "demouser", "type": "text" },
+                { "key": "password", "value": "{{userPassword}}", "type": "text" },
+                { "key": "phone", "value": "9999999999", "type": "text" },
+                { "key": "avatar", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{baseUrl}}/users/register"
+          }
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/users/login"
+          }
+        },
+        {
+          "name": "Refresh User Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"\"\n}"
+            },
+            "url": "{{baseUrl}}/users/refresh-token"
+          }
+        },
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/profile"
+          }
+        },
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Updated User\",\n  \"phone\": \"8888888888\",\n  \"address\": {\n    \"street\": \"Main St\",\n    \"city\": \"Bengaluru\",\n    \"state\": \"Karnataka\",\n    \"zipCode\": \"560001\",\n    \"country\": \"India\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/users/profile/update"
+          }
+        },
+        {
+          "name": "Update User Avatar (form-data)",
+          "request": {
+            "method": "PATCH",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "avatar", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{baseUrl}}/users/profile/avatar"
+          }
+        },
+        {
+          "name": "Get User Bookings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/users/bookings?status=pending&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "bookings"],
+              "query": [
+                { "key": "status", "value": "pending" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Favorite Chefs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/favorites"
+          }
+        },
+        {
+          "name": "Add Favorite Chef",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/users/favorites/{{chefId}}"
+          }
+        },
+        {
+          "name": "Remove Favorite Chef",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/users/favorites/{{chefId}}"
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"{{userPassword}}\",\n  \"newPassword\": \"NewPass@123\"\n}"
+            },
+            "url": "{{baseUrl}}/users/change-password"
+          }
+        },
+        {
+          "name": "Logout User",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/users/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chefs",
+      "item": [
+        {
+          "name": "Register Chef (form-data)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "fullName", "value": "Chef Demo", "type": "text" },
+                { "key": "email", "value": "{{chefEmail}}", "type": "text" },
+                { "key": "password", "value": "{{chefPassword}}", "type": "text" },
+                { "key": "phone", "value": "9000000000", "type": "text" },
+                { "key": "experience", "value": "5", "type": "text" },
+                { "key": "pricePerHour", "value": "700", "type": "text" },
+                { "key": "bio", "value": "Chef specializing in Indian cuisine", "type": "text" },
+                { "key": "specialization", "value": "[\"Indian\",\"Italian\"]", "type": "text" },
+                { "key": "serviceLocations", "value": "[{\"city\":\"Bengaluru\",\"state\":\"Karnataka\",\"country\":\"India\",\"radius\":15}]", "type": "text" },
+                { "key": "avatar", "type": "file", "src": "" },
+                { "key": "coverImage", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{baseUrl}}/chefs/register"
+          }
+        },
+        {
+          "name": "Login Chef",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{chefEmail}}\",\n  \"password\": \"{{chefPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/chefs/login"
+          }
+        },
+        {
+          "name": "Get Chef Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/chefs/profile"
+          }
+        },
+        {
+          "name": "Update Chef Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"Updated chef bio\",\n  \"pricePerHour\": 800,\n  \"minimumBookingHours\": 2\n}"
+            },
+            "url": "{{baseUrl}}/chefs/profile/update"
+          }
+        },
+        {
+          "name": "Add Dish (form-data)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "Paneer Butter Masala", "type": "text" },
+                { "key": "description", "value": "Creamy north indian curry", "type": "text" },
+                { "key": "category", "value": "Main Course", "type": "text" },
+                { "key": "cuisine", "value": "Indian", "type": "text" },
+                { "key": "preparationTime", "value": "20", "type": "text" },
+                { "key": "cookingTime", "value": "25", "type": "text" },
+                { "key": "servings", "value": "2", "type": "text" },
+                { "key": "price", "value": "350", "type": "text" },
+                { "key": "ingredients", "value": "[{\"name\":\"Paneer\",\"quantity\":\"200\",\"unit\":\"g\"}]", "type": "text" },
+                { "key": "dietaryInfo", "value": "{\"isVegetarian\":true,\"spiceLevel\":\"Medium\"}", "type": "text" },
+                { "key": "tags", "value": "[\"popular\",\"dinner\"]", "type": "text" },
+                { "key": "images", "type": "file", "src": "" }
+              ]
+            },
+            "url": "{{baseUrl}}/chefs/dishes/add"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.data?._id) pm.environment.set('dishId', json.data._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Chef Dishes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/chefs/dishes"
+          }
+        },
+        {
+          "name": "Update Dish",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 400,\n  \"isAvailable\": true\n}"
+            },
+            "url": "{{baseUrl}}/chefs/dishes/{{dishId}}"
+          }
+        },
+        {
+          "name": "Delete Dish",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/chefs/dishes/{{dishId}}"
+          }
+        },
+        {
+          "name": "Get Chef Bookings",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/chefs/bookings"
+          }
+        },
+        {
+          "name": "Update Booking Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}"
+            },
+            "url": "{{baseUrl}}/chefs/bookings/{{bookingId}}/status"
+          }
+        },
+        {
+          "name": "Get Chef Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/chefs/stats"
+          }
+        },
+        {
+          "name": "Toggle Availability",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/chefs/availability/toggle"
+          }
+        },
+        {
+          "name": "Logout Chef",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/chefs/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "Get All Chefs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/chefs"
+          }
+        },
+        {
+          "name": "Search Chefs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/chefs/search?q=indian"
+          }
+        },
+        {
+          "name": "Get Chef By Id",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/chefs/{{chefId}}"
+          }
+        },
+        {
+          "name": "Get Chef Dishes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/chefs/{{chefId}}/dishes"
+          }
+        },
+        {
+          "name": "Search Dishes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/dishes?q=paneer"
+          }
+        },
+        {
+          "name": "Get Dish By Id",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/public/dishes/{{dishId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "Create Booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chefId\": \"{{chefId}}\",\n  \"dishes\": [\n    { \"dishId\": \"{{dishId}}\", \"quantity\": 2 }\n  ],\n  \"bookingDate\": \"2026-03-10\",\n  \"bookingTime\": \"19:00\",\n  \"eventType\": \"Casual Dinner\",\n  \"guestCount\": 4,\n  \"serviceLocation\": {\n    \"address\": \"Flat 12, Main Street\",\n    \"city\": \"Bengaluru\",\n    \"state\": \"Karnataka\",\n    \"zipCode\": \"560001\"\n  },\n  \"specialInstructions\": \"Less spicy\",\n  \"dietaryRestrictions\": [\"No peanuts\"],\n  \"paymentMethod\": \"cash\"\n}"
+            },
+            "url": "{{baseUrl}}/bookings/create"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json?.data?._id) pm.environment.set('bookingId', json.data._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Booking By Id",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/bookings/{{bookingId}}"
+          }
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Plan changed\"\n}"
+            },
+            "url": "{{baseUrl}}/bookings/{{bookingId}}/cancel"
+          }
+        },
+        {
+          "name": "Add Booking Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"foodQuality\": 5,\n  \"professionalism\": 5,\n  \"punctuality\": 4,\n  \"comment\": \"Excellent service\"\n}"
+            },
+            "url": "{{baseUrl}}/bookings/{{bookingId}}/review"
+          }
+        }
+      ]
+    }
+  ]
+}
