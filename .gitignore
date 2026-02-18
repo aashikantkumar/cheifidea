@@ -142,3 +142,7 @@ dist
 .svelte-kit
 
 # End of https://www.toptal.com/developers/gitignore/api/node
+
+# Ignore uploaded temp files but keep the directory
+public/temp/*
+!public/temp/.gitkeep

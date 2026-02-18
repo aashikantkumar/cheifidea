@@ -45,4 +45,44 @@ app.get("/api/v1/health", (_req, res) => {
     res.status(200).json({ status: "ok", message: "Server is running" });
 });
 
+// ─── Error Handling Middleware ─────────────────────────────────
+// Handle Multer file upload errors
+app.use((err, req, res, next) => {
+    if (err.name === 'MulterError') {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+                statusCode: 400,
+                message: "File size too large. Maximum allowed size is 5 MB per file.",
+                success: false
+            });
+        }
+        if (err.code === 'LIMIT_FILE_COUNT') {
+            return res.status(400).json({
+                statusCode: 400,
+                message: "Too many files. Maximum 10 files allowed per request.",
+                success: false
+            });
+        }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+            return res.status(400).json({
+                statusCode: 400,
+                message: "Unexpected field in file upload.",
+                success: false
+            });
+        }
+    }
+    
+    // Handle file type errors
+    if (err.message.includes('Invalid file type')) {
+        return res.status(400).json({
+            statusCode: 400,
+            message: err.message,
+            success: false
+        });
+    }
+
+    // Pass to next error handler
+    next(err);
+});
+
 export { app };

@@ -8,24 +8,53 @@ cloudinary.config({
 });
 
 
-const uploadOnCloudinary=async (localFilePath)=>{
+const uploadOnCloudinary = async (localFilePath, options = {}) => {
+    try {
+        if (!localFilePath) return null;
 
-    try{
-        if(!localFilePath) return null;
-        //uploading the file to cloudinary 
-        const respone = await cloudinary.uploader.upload(localFilePath,{
-            resource_type:"auto"
-        })
-        //file has been uploaded successfully
+        // Check if file exists before uploading
+        if (!fs.existsSync(localFilePath)) {
+            console.error("File does not exist:", localFilePath);
+            return null;
+        }
 
-        console.log("File uploaded successfully to cloudinary:", respone.url);
-        fs.unlinkSync(localFilePath); // remove local file after upload
-        return respone;
+        // Default upload options for optimization
+        const defaultOptions = {
+            resource_type: "auto",
+            quality: "auto:good", // Automatic quality optimization
+            fetch_format: "auto", // Automatic format selection (WebP for supported browsers)
+            ...options
+        };
 
-    }catch(error){
-        fs.unlinkSync(localFilePath); // remove the file from local save temporray file 
-          return null;
+        // Upload file to cloudinary
+        const response = await cloudinary.uploader.upload(localFilePath, defaultOptions);
 
+        // File uploaded successfully
+        console.log("File uploaded successfully to cloudinary:", response.url);
+        console.log("File size:", Math.round(response.bytes / 1024), "KB");
+
+        // Remove local file after successful upload
+        try {
+            fs.unlinkSync(localFilePath);
+        } catch (unlinkError) {
+            console.error("Error deleting local file:", unlinkError.message);
+        }
+
+        return response;
+
+    } catch (error) {
+        console.error("Cloudinary upload error:", error.message);
+
+        // Try to remove the local file if it exists
+        try {
+            if (fs.existsSync(localFilePath)) {
+                fs.unlinkSync(localFilePath);
+            }
+        } catch (unlinkError) {
+            console.error("Error deleting local file after failed upload:", unlinkError.message);
+        }
+
+        return null;
     }
 }
 export {uploadOnCloudinary};
