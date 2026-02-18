@@ -15,7 +15,8 @@ import {
     updateBookingStatus,
     getChefStats,
     toggleAvailability,
-} from "../controllers/chef.controllers.js";
+    debugChefData,
+} from "../controllers/chef/index.js";
 
 const router = Router();
 
@@ -29,6 +30,9 @@ router.route("/register").post(
     registerChef
 );
 router.route("/login").post(loginChef);
+
+// Debug route (remove in production)
+router.route("/debug").get(debugChefData);
 
 // ─── Protected Routes (Chef Only) ─────────────────────────────
 router.route("/logout").post(verifyJWT, verifyChef, logoutChef);

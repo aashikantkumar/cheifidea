@@ -162,7 +162,9 @@ const chefProfileSchema = new Schema(
 );
 
 // Indexes for search
-chefProfileSchema.index({ "serviceLocations.city": 1, specialization: 1 });
+// Note: Cannot create compound index on multiple array fields
+chefProfileSchema.index({ "serviceLocations.city": 1 });
+chefProfileSchema.index({ specialization: 1 });
 chefProfileSchema.index({ averageRating: -1, totalBookings: -1 });
 chefProfileSchema.index({ isApproved: 1, isAvailable: 1 });
 

@@ -96,6 +96,21 @@ const registerChef = asyncHandler(async (req, res) => {
             ? JSON.parse(serviceLocations)
             : serviceLocations || [];
 
+    // Validate serviceLocations format
+    if (parsedLocations.length > 0) {
+        const invalidLocation = parsedLocations.find(loc => !loc.city);
+        if (invalidLocation) {
+            throw new ApiError(400, "Each service location must have a 'city' field");
+        }
+    }
+
+    console.log("Parsed data:", {
+        specialization: parsedSpecialization,
+        locations: parsedLocations,
+        experience: Number(experience),
+        pricePerHour: Number(pricePerHour)
+    });
+
     // Create account
     const account = await Account.create({
         email,
@@ -103,46 +118,62 @@ const registerChef = asyncHandler(async (req, res) => {
         role: "chef",
     });
 
+    console.log("Account created with ID:", account._id);
+
     // Create chef profile
-    const chefProfile = await ChefProfile.create({
-        account: account._id,
-        fullName,
-        phone,
-        avatar: avatar.url,
-        coverImage: coverImage?.url || "",
-        bio: bio || "",
-        specialization: parsedSpecialization,
-        experience: Number(experience),
-        pricePerHour: Number(pricePerHour),
-        serviceLocations: parsedLocations,
-        certification: certImages.map((url) => ({ document: url })),
-    });
+    try {
+        const chefProfile = await ChefProfile.create({
+            account: account._id,
+            fullName,
+            phone,
+            avatar: avatar.url,
+            coverImage: coverImage?.url || "",
+            bio: bio || "",
+            specialization: parsedSpecialization,
+            experience: Number(experience),
+            pricePerHour: Number(pricePerHour),
+            serviceLocations: parsedLocations,
+            certification: certImages.map((url) => ({ document: url })),
+        });
 
-    // Link profile to account
-    account.chefProfile = chefProfile._id;
-    await account.save({ validateBeforeSave: false });
+        console.log("ChefProfile created with ID:", chefProfile._id);
 
-    // Generate tokens
-    const { accessToken, refreshToken } =
-        await generateAccessAndRefreshToken(account._id);
+        // Link profile to account
+        account.chefProfile = chefProfile._id;
+        await account.save({ validateBeforeSave: false });
 
-    const createdChef = await Account.findById(account._id)
-        .select("-password -refreshToken")
-        .populate("chefProfile");
+        console.log("Account updated with chefProfile reference");
 
-    const options = { httpOnly: true, secure: true };
+        // Generate tokens
+        const { accessToken, refreshToken } =
+            await generateAccessAndRefreshToken(account._id);
 
-    return res
-        .status(201)
-        .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", refreshToken, options)
-        .json(
-            new ApiResponse(
-                201,
-                { chef: createdChef, accessToken, refreshToken },
-                "Chef registered successfully"
-            )
+        const createdChef = await Account.findById(account._id)
+            .select("-password -refreshToken")
+            .populate("chefProfile");
+
+        const options = { httpOnly: true, secure: true };
+
+        return res
+            .status(201)
+            .cookie("accessToken", accessToken, options)
+            .cookie("refreshToken", refreshToken, options)
+            .json(
+                new ApiResponse(
+                    201,
+                    { chef: createdChef, accessToken, refreshToken },
+                    "Chef registered successfully"
+                )
+            );
+    } catch (profileError) {
+        // If ChefProfile creation fails, delete the created account
+        console.error("ChefProfile creation failed:", profileError.message);
+        await Account.findByIdAndDelete(account._id);
+        throw new ApiError(
+            500,
+            `Failed to create chef profile: ${profileError.message}`
         );
+    }
 });
 
 // ─── Login Chef ────────────────────────────────────────────────
@@ -614,6 +645,43 @@ const toggleAvailability = asyncHandler(async (req, res) => {
         );
 });
 
+// ─── Debug: Check Chef Data (Development Only) ─────────────────
+const debugChefData = asyncHandler(async (req, res) => {
+    const { email } = req.query;
+
+    if (!email) {
+        throw new ApiError(400, "Email query parameter required");
+    }
+
+    // Find account
+    const account = await Account.findOne({ email, role: "chef" })
+        .select("-password -refreshToken");
+
+    if (!account) {
+        return res.status(404).json(
+            new ApiResponse(404, null, "Chef account not found")
+        );
+    }
+
+    // Find chef profile
+    const chefProfile = await ChefProfile.findOne({ account: account._id });
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                account: account,
+                chefProfile: chefProfile,
+                linked: account.chefProfile?.toString() === chefProfile?._id?.toString(),
+                message: chefProfile 
+                    ? "Both Account and ChefProfile exist" 
+                    : "Account exists but ChefProfile is MISSING!"
+            },
+            "Debug data fetched"
+        )
+    );
+});
+
 export {
     registerChef,
     loginChef,
@@ -628,4 +696,5 @@ export {
     updateBookingStatus,
     getChefStats,
     toggleAvailability,
+    debugChefData,
 };
