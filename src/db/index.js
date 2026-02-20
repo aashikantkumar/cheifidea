@@ -1,21 +1,31 @@
 import mongoose from "mongoose";
-import { DB_NAME } from "../constants.js";
+import { env } from "../config/env.js";
+import { logger } from "../config/logger.js";
 
+const buildMongoUri = () => {
+    const normalizedBaseUri = env.MONGODB_URI.replace(/\/+$/, "");
+    return `${normalizedBaseUri}/${env.DB_NAME}`;
+};
 
+const connectDB = async () => {
+    const connectionInstance = await mongoose.connect(buildMongoUri(), {
+        maxPoolSize: 20,
+        serverSelectionTimeoutMS: 10000,
+    });
 
-const connectDB = async ()=>{
-   
-    try{
+    logger.info(
+        { host: connectionInstance.connection.host, db: env.DB_NAME },
+        "mongodb connected"
+    );
 
-        const connectionInstance=await mongoose.connect(`${process.env.MONGODB_URI}/${DB_NAME}`,)
+    return connectionInstance;
+};
 
-        console.log(`mongoDB connected :${connectionInstance.connection.host}`);
-    }catch(error){
-        console.error("Error connecting to MongoDB:",error);
-        process.exit(1);
-    }
+export const disconnectDB = async () => {
+    await mongoose.connection.close();
+    logger.info("mongodb connection closed");
+};
 
+export const isDbReady = () => mongoose.connection.readyState === 1;
 
-
-}
-export default  connectDB;
+export default connectDB;

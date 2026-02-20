@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Account } from "../models/account.model.js";
 import { UserProfile } from "../models/userProfile.model.js";
@@ -6,100 +7,119 @@ import { ChefProfile } from "../models/chefProfile.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
-import jwt from "jsonwebtoken";
+import {
+    clearStoredRefreshToken,
+    isRefreshTokenValid,
+    issueAuthTokens,
+} from "../services/auth.service.js";
+import {
+    accessTokenCookieOptions,
+    clearCookieOptions,
+    refreshTokenCookieOptions,
+} from "../config/cookie.js";
+import { env } from "../config/env.js";
+import { getPagination } from "../utils/query.js";
+import { withTransaction } from "../utils/transaction.js";
 
-// ─── Helper: Generate Tokens ───────────────────────────────────
-const generateAccessAndRefreshToken = async (accountId) => {
-    try {
-        const account = await Account.findById(accountId);
-        const accessToken = account.generateAccessToken();
-        const refreshToken = account.generateRefreshToken();
-
-        account.refreshToken = refreshToken;
-        await account.save({ validateBeforeSave: false });
-
-        return { accessToken, refreshToken };
-    } catch (error) {
-        throw new ApiError(
-            500,
-            "Something went wrong while generating tokens"
-        );
+const applySession = (query, session) => {
+    if (session) {
+        query.session(session);
     }
+    return query;
 };
 
 // ─── Register User ─────────────────────────────────────────────
 const registerUser = asyncHandler(async (req, res) => {
     const { fullName, email, username, password, phone } = req.body;
 
-    // Validate required fields
-    if (
-        [fullName, email, username, password, phone].some(
-            (field) => !field || field.trim() === ""
-        )
-    ) {
-        throw new ApiError(400, "All fields are required");
-    }
-
-    // Check if account already exists
-    const existingAccount = await Account.findOne({ email });
-    if (existingAccount) {
-        throw new ApiError(409, "User with this email already exists");
-    }
-
-    // Check if username taken
-    const existingUsername = await UserProfile.findOne({
-        username: username.toLowerCase(),
-    });
-    if (existingUsername) {
-        throw new ApiError(409, "Username already taken");
-    }
-
-    // Upload avatar if provided
     const avatarLocalPath = req.file?.path;
     let avatar = null;
+
     if (avatarLocalPath) {
-        avatar = await uploadOnCloudinary(avatarLocalPath);
+        avatar = await uploadOnCloudinary(avatarLocalPath, {
+            folder: "cheifidea/users/avatars",
+        });
     }
 
-    // Create account
-    const account = await Account.create({
-        email,
-        password,
-        role: "user",
+    const accountId = await withTransaction(async (session) => {
+        const existingAccount = await applySession(
+            Account.findOne({ email }),
+            session
+        );
+        if (existingAccount) {
+            throw new ApiError(409, "User with this email already exists");
+        }
+
+        const existingUsername = await applySession(
+            UserProfile.findOne({ username: username.toLowerCase() }),
+            session
+        );
+        if (existingUsername) {
+            throw new ApiError(409, "Username already taken");
+        }
+
+        const account = session
+            ? (
+                  await Account.create(
+                      [
+                          {
+                              email,
+                              password,
+                              role: "user",
+                          },
+                      ],
+                      { session }
+                  )
+              )[0]
+            : await Account.create({
+                  email,
+                  password,
+                  role: "user",
+              });
+
+        const userProfile = session
+            ? (
+                  await UserProfile.create(
+                      [
+                          {
+                              account: account._id,
+                              fullName,
+                              username: username.toLowerCase(),
+                              phone,
+                              avatar: avatar?.secure_url || "",
+                          },
+                      ],
+                      { session }
+                  )
+              )[0]
+            : await UserProfile.create({
+                  account: account._id,
+                  fullName,
+                  username: username.toLowerCase(),
+                  phone,
+                  avatar: avatar?.secure_url || "",
+              });
+
+        account.userProfile = userProfile._id;
+        await account.save({ validateBeforeSave: false, ...(session ? { session } : {}) });
+
+        return account._id;
     });
 
-    // Create user profile
-    const userProfile = await UserProfile.create({
-        account: account._id,
-        fullName,
-        username: username.toLowerCase(),
-        phone,
-        avatar: avatar?.url || "",
-    });
+    const { accessToken, refreshToken } = await issueAuthTokens(accountId);
 
-    // Link profile to account
-    account.userProfile = userProfile._id;
-    await account.save({ validateBeforeSave: false });
-
-    // Generate tokens
-    const { accessToken, refreshToken } =
-        await generateAccessAndRefreshToken(account._id);
-
-    // Get user without sensitive data
-    const createdUser = await Account.findById(account._id)
+    const createdUser = await Account.findById(accountId)
         .select("-password -refreshToken")
         .populate("userProfile");
 
-    const options = { httpOnly: true, secure: true };
-
     return res
         .status(201)
-        .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", refreshToken, options)
+        .cookie("accessToken", accessToken, accessTokenCookieOptions)
+        .cookie("refreshToken", refreshToken, refreshTokenCookieOptions)
         .json(
             new ApiResponse(
                 201,
-                { user: createdUser, accessToken, refreshToken },
+                { user: createdUser, accessToken },
                 "User registered successfully"
             )
         );
@@ -108,10 +128,6 @@ const registerUser = asyncHandler(async (req, res) => {
 // ─── Login User ────────────────────────────────────────────────
 const loginUser = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-        throw new ApiError(400, "Email and password are required");
-    }
 
     const account = await Account.findOne({ email, role: "user" });
     if (!account) {
@@ -123,23 +139,20 @@ const loginUser = asyncHandler(async (req, res) => {
         throw new ApiError(401, "Invalid credentials");
     }
 
-    const { accessToken, refreshToken } =
-        await generateAccessAndRefreshToken(account._id);
+    const { accessToken, refreshToken } = await issueAuthTokens(account._id);
 
     const loggedInUser = await Account.findById(account._id)
         .select("-password -refreshToken")
         .populate("userProfile");
 
-    const options = { httpOnly: true, secure: true };
-
     return res
         .status(200)
-        .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", refreshToken, options)
+        .cookie("accessToken", accessToken, accessTokenCookieOptions)
+        .cookie("refreshToken", refreshToken, refreshTokenCookieOptions)
         .json(
             new ApiResponse(
                 200,
-                { user: loggedInUser, accessToken, refreshToken },
+                { user: loggedInUser, accessToken },
                 "User logged in successfully"
             )
         );
@@ -147,18 +160,12 @@ const loginUser = asyncHandler(async (req, res) => {
 
 // ─── Logout User ───────────────────────────────────────────────
 const logoutUser = asyncHandler(async (req, res) => {
-    await Account.findByIdAndUpdate(
-        req.user._id,
-        { $unset: { refreshToken: 1 } },
-        { new: true }
-    );
-
-    const options = { httpOnly: true, secure: true };
+    await clearStoredRefreshToken(req.user._id);
 
     return res
         .status(200)
-        .clearCookie("accessToken", options)
-        .clearCookie("refreshToken", options)
+        .clearCookie("accessToken", clearCookieOptions)
+        .clearCookie("refreshToken", clearCookieOptions)
         .json(new ApiResponse(200, {}, "User logged out successfully"));
 });
 
@@ -174,7 +181,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     try {
         const decodedToken = jwt.verify(
             incomingRefreshToken,
-            process.env.REFRESH_TOKEN_SECRET
+            env.REFRESH_TOKEN_SECRET
         );
 
         const account = await Account.findById(decodedToken?._id);
@@ -182,23 +189,21 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
             throw new ApiError(401, "Invalid refresh token");
         }
 
-        if (incomingRefreshToken !== account?.refreshToken) {
+        if (!isRefreshTokenValid(account, incomingRefreshToken)) {
             throw new ApiError(401, "Refresh token is expired or used");
         }
 
         const { accessToken, refreshToken: newRefreshToken } =
-            await generateAccessAndRefreshToken(account._id);
-
-        const options = { httpOnly: true, secure: true };
+            await issueAuthTokens(account._id);
 
         return res
             .status(200)
-            .cookie("accessToken", accessToken, options)
-            .cookie("refreshToken", newRefreshToken, options)
+            .cookie("accessToken", accessToken, accessTokenCookieOptions)
+            .cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions)
             .json(
                 new ApiResponse(
                     200,
-                    { accessToken, refreshToken: newRefreshToken },
+                    { accessToken },
                     "Access token refreshed"
                 )
             );
@@ -211,10 +216,6 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 const changePassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
 
-    if (!oldPassword || !newPassword) {
-        throw new ApiError(400, "Old password and new password are required");
-    }
-
     const account = await Account.findById(req.user._id);
     const isPasswordCorrect = await account.isPasswordCorrect(oldPassword);
 
@@ -223,10 +224,13 @@ const changePassword = asyncHandler(async (req, res) => {
     }
 
     account.password = newPassword;
+    account.refreshToken = undefined;
     await account.save({ validateBeforeSave: false });
 
     return res
         .status(200)
+        .clearCookie("accessToken", clearCookieOptions)
+        .clearCookie("refreshToken", clearCookieOptions)
         .json(new ApiResponse(200, {}, "Password changed successfully"));
 });
 
@@ -285,15 +289,17 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Avatar file is required");
     }
 
-    const avatar = await uploadOnCloudinary(avatarLocalPath);
-    if (!avatar?.url) {
+    const avatar = await uploadOnCloudinary(avatarLocalPath, {
+        folder: "cheifidea/users/avatars",
+    });
+    if (!avatar?.secure_url) {
         throw new ApiError(500, "Error while uploading avatar");
     }
 
     const account = await Account.findById(req.user._id);
     const updatedProfile = await UserProfile.findByIdAndUpdate(
         account.userProfile,
-        { $set: { avatar: avatar.url } },
+        { $set: { avatar: avatar.secure_url } },
         { new: true }
     );
 
@@ -313,7 +319,12 @@ const getUserBookings = asyncHandler(async (req, res) => {
         throw new ApiError(404, "User profile not found");
     }
 
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status } = req.query;
+    const { page, limit, skip } = getPagination(req.query, {
+        defaultPage: 1,
+        defaultLimit: 10,
+        maxLimit: 100,
+    });
 
     const query = { user: userProfile._id };
     if (status) query.bookingStatus = status;
@@ -322,14 +333,15 @@ const getUserBookings = asyncHandler(async (req, res) => {
         .populate({
             path: "chef",
             select: "fullName avatar phone specialization",
+            match: { isApproved: true, accountStatus: "active" },
         })
         .populate({
             path: "dishes.dish",
             select: "name images price",
         })
         .sort({ bookingDate: -1 })
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit));
+        .skip(skip)
+        .limit(limit);
 
     const total = await Booking.countDocuments(query);
 
@@ -340,7 +352,7 @@ const getUserBookings = asyncHandler(async (req, res) => {
                 bookings,
                 pagination: {
                     total,
-                    page: parseInt(page),
+                    page,
                     pages: Math.ceil(total / limit),
                 },
             },
@@ -356,6 +368,7 @@ const getFavoriteChefs = asyncHandler(async (req, res) => {
         account.userProfile
     ).populate({
         path: "favoriteChefs",
+        match: { isApproved: true, accountStatus: "active" },
         select: "fullName avatar specialization averageRating totalReviews pricePerHour serviceLocations isAvailable",
     });
 
@@ -379,19 +392,15 @@ const addFavoriteChef = asyncHandler(async (req, res) => {
     const { chefId } = req.params;
 
     const chefExists = await ChefProfile.findById(chefId);
-    if (!chefExists) {
+    if (!chefExists || !chefExists.isApproved || chefExists.accountStatus !== "active") {
         throw new ApiError(404, "Chef not found");
     }
 
     const account = await Account.findById(req.user._id);
-    const userProfile = await UserProfile.findById(account.userProfile);
 
-    if (userProfile.favoriteChefs.includes(chefId)) {
-        throw new ApiError(400, "Chef already in favorites");
-    }
-
-    userProfile.favoriteChefs.push(chefId);
-    await userProfile.save();
+    await UserProfile.findByIdAndUpdate(account.userProfile, {
+        $addToSet: { favoriteChefs: chefId },
+    });
 
     return res
         .status(200)

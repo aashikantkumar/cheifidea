@@ -1,10 +1,12 @@
-import {v2 as cloudinary } from "cloudinary";
-import fs from "fs";
+import { v2 as cloudinary } from "cloudinary";
+import fs from "node:fs";
+import { env } from "../config/env.js";
+import { logger } from "../config/logger.js";
 
 cloudinary.config({
-    cloud_name:process.env.CLOUDINARY_CLOUD_NAME,
-    api_key:process.env.CLOUDINARY_API_KEY,
-    api_secret:process.env.CLOUDINARY_API_SECRET
+    cloud_name: env.CLOUDINARY_CLOUD_NAME,
+    api_key: env.CLOUDINARY_API_KEY,
+    api_secret: env.CLOUDINARY_API_SECRET,
 });
 
 
@@ -14,7 +16,7 @@ const uploadOnCloudinary = async (localFilePath, options = {}) => {
 
         // Check if file exists before uploading
         if (!fs.existsSync(localFilePath)) {
-            console.error("File does not exist:", localFilePath);
+            logger.warn({ localFilePath }, "cloudinary upload skipped: file not found");
             return null;
         }
 
@@ -27,23 +29,33 @@ const uploadOnCloudinary = async (localFilePath, options = {}) => {
         };
 
         // Upload file to cloudinary
-        const response = await cloudinary.uploader.upload(localFilePath, defaultOptions);
+        const response = await cloudinary.uploader.upload(
+            localFilePath,
+            defaultOptions
+        );
 
-        // File uploaded successfully
-        console.log("File uploaded successfully to cloudinary:", response.url);
-        console.log("File size:", Math.round(response.bytes / 1024), "KB");
+        logger.info(
+            {
+                cloudinaryUrl: response.secure_url,
+                sizeKb: Math.round(response.bytes / 1024),
+            },
+            "file uploaded to cloudinary"
+        );
 
         // Remove local file after successful upload
         try {
             fs.unlinkSync(localFilePath);
         } catch (unlinkError) {
-            console.error("Error deleting local file:", unlinkError.message);
+            logger.warn(
+                { err: unlinkError, localFilePath },
+                "failed to delete local uploaded file"
+            );
         }
 
         return response;
 
     } catch (error) {
-        console.error("Cloudinary upload error:", error.message);
+        logger.error({ err: error }, "cloudinary upload error");
 
         // Try to remove the local file if it exists
         try {
@@ -51,7 +63,10 @@ const uploadOnCloudinary = async (localFilePath, options = {}) => {
                 fs.unlinkSync(localFilePath);
             }
         } catch (unlinkError) {
-            console.error("Error deleting local file after failed upload:", unlinkError.message);
+            logger.warn(
+                { err: unlinkError, localFilePath },
+                "failed to delete local file after cloudinary error"
+            );
         }
 
         return null;

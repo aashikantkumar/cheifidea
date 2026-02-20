@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { upload } from "../middlewares/multer.middleware.js";
+import { uploadUserAvatar } from "../middlewares/multer.middleware.js";
 import { verifyJWT, verifyUser } from "../middlewares/auth.middleware.js";
 import {
     registerUser,
@@ -19,21 +19,21 @@ import {
 const router = Router();
 
 // ─── Public Routes ─────────────────────────────────────────────
-router.route("/register").post(upload.single("avatar"), registerUser);
+router.route("/register").post(uploadUserAvatar, registerUser);
 router.route("/login").post(loginUser);
 router.route("/refresh-token").post(refreshAccessToken);
 
 // ─── Protected Routes ──────────────────────────────────────────
-router.route("/logout").post(verifyJWT, logoutUser);
-router.route("/change-password").post(verifyJWT, changePassword);
-router.route("/profile").get(verifyJWT, getUserProfile);
-router.route("/profile/update").patch(verifyJWT, updateUserProfile);
+router.route("/logout").post(verifyJWT, verifyUser, logoutUser);
+router.route("/change-password").post(verifyJWT, verifyUser, changePassword);
+router.route("/profile").get(verifyJWT, verifyUser, getUserProfile);
+router.route("/profile/update").patch(verifyJWT, verifyUser, updateUserProfile);
 router
     .route("/profile/avatar")
-    .patch(verifyJWT, upload.single("avatar"), updateUserAvatar);
-router.route("/bookings").get(verifyJWT, getUserBookings);
-router.route("/favorites").get(verifyJWT, getFavoriteChefs);
-router.route("/favorites/:chefId").post(verifyJWT, addFavoriteChef);
-router.route("/favorites/:chefId").delete(verifyJWT, removeFavoriteChef);
+    .patch(verifyJWT, verifyUser, uploadUserAvatar, updateUserAvatar);
+router.route("/bookings").get(verifyJWT, verifyUser, getUserBookings);
+router.route("/favorites").get(verifyJWT, verifyUser, getFavoriteChefs);
+router.route("/favorites/:chefId").post(verifyJWT, verifyUser, addFavoriteChef);
+router.route("/favorites/:chefId").delete(verifyJWT, verifyUser, removeFavoriteChef);
 
 export default router;

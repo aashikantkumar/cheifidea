@@ -5,7 +5,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": " nodemon -r dotenv/config --experimental-json-modules src/index.js"
+    "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js",
+    "start": "node -r dotenv/config src/index.js",
+    "lint": "eslint src/**/*.js",
+    "test": "echo \"No tests yet\" && exit 0"
   },
   "keywords": [
     "aashikant",
@@ -23,9 +26,15 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.16.0",
     "mongoose-aggregate-paginate-v2": "^1.1.4",
-    "multer": "^2.0.2"
+    "multer": "^2.0.2",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "pino-http-print": "^4.0.0",
+    "zod": "^4.3.6"
   }
 }
