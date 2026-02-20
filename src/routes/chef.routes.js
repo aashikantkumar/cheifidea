@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { upload } from "../middlewares/multer.middleware.js";
+import { uploadChefRegistrationFiles, uploadDishImages } from "../middlewares/multer.middleware.js";
 import { verifyJWT, verifyChef } from "../middlewares/auth.middleware.js";
 import {
     registerChef,
@@ -15,24 +15,13 @@ import {
     updateBookingStatus,
     getChefStats,
     toggleAvailability,
-    debugChefData,
 } from "../controllers/chef/index.js";
 
 const router = Router();
 
 // ─── Public Routes ─────────────────────────────────────────────
-router.route("/register").post(
-    upload.fields([
-        { name: "avatar", maxCount: 1 },
-        { name: "coverImage", maxCount: 1 },
-        { name: "certificates", maxCount: 5 },
-    ]),
-    registerChef
-);
+router.route("/register").post(uploadChefRegistrationFiles, registerChef);
 router.route("/login").post(loginChef);
-
-// Debug route (remove in production)
-router.route("/debug").get(debugChefData);
 
 // ─── Protected Routes (Chef Only) ─────────────────────────────
 router.route("/logout").post(verifyJWT, verifyChef, logoutChef);
@@ -41,12 +30,7 @@ router.route("/profile/update").patch(verifyJWT, verifyChef, updateChefProfile);
 
 // Dish Management
 router.route("/dishes").get(verifyJWT, verifyChef, getChefDishes);
-router.route("/dishes/add").post(
-    verifyJWT,
-    verifyChef,
-    upload.array("images", 5),
-    addDish
-);
+router.route("/dishes/add").post(verifyJWT, verifyChef, uploadDishImages, addDish);
 router.route("/dishes/:dishId").patch(verifyJWT, verifyChef, updateDish);
 router.route("/dishes/:dishId").delete(verifyJWT, verifyChef, deleteDish);
 

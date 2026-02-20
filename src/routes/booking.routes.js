@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { verifyJWT, verifyUser } from "../middlewares/auth.middleware.js";
 import {
     createBooking,
     getBookingById,
@@ -9,10 +9,10 @@ import {
 
 const router = Router();
 
-// All routes require authentication
-router.route("/create").post(verifyJWT, createBooking);
+// create/cancel/review require a user account; getBookingById is shared (chef or user)
+router.route("/create").post(verifyJWT, verifyUser, createBooking);
 router.route("/:bookingId").get(verifyJWT, getBookingById);
-router.route("/:bookingId/cancel").patch(verifyJWT, cancelBooking);
-router.route("/:bookingId/review").post(verifyJWT, addReview);
+router.route("/:bookingId/cancel").patch(verifyJWT, verifyUser, cancelBooking);
+router.route("/:bookingId/review").post(verifyJWT, verifyUser, addReview);
 
 export default router;

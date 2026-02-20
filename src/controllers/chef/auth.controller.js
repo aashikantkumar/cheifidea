@@ -5,6 +5,7 @@ import { ApiError } from "../../utils/ApiError.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { uploadOnCloudinary } from "../../utils/cloudinary.js";
 import { generateTokens, findChefWithProfile } from "../../services/chef.service.js";
+import { clearStoredRefreshToken } from "../../services/auth.service.js";
 
 const COOKIE_OPTIONS = { httpOnly: true, secure: true };
 
@@ -51,10 +52,16 @@ export const registerChef = asyncHandler(async (req, res) => {
     }
 
     // Parse JSON string fields from form-data
-    const parsedSpecialization =
-        typeof specialization === "string" ? JSON.parse(specialization) : specialization || [];
-    const parsedLocations =
-        typeof serviceLocations === "string" ? JSON.parse(serviceLocations) : serviceLocations || [];
+    let parsedSpecialization;
+    let parsedLocations;
+    try {
+        parsedSpecialization =
+            typeof specialization === "string" ? JSON.parse(specialization) : specialization || [];
+        parsedLocations =
+            typeof serviceLocations === "string" ? JSON.parse(serviceLocations) : serviceLocations || [];
+    } catch {
+        throw new ApiError(400, "Invalid JSON for specialization or serviceLocations");
+    }
 
     // Validate serviceLocations
     if (parsedLocations.some((loc) => !loc.city)) {
@@ -124,11 +131,7 @@ export const loginChef = asyncHandler(async (req, res) => {
 
 // ─── Logout Chef ───────────────────────────────────────────────
 export const logoutChef = asyncHandler(async (req, res) => {
-    await Account.findByIdAndUpdate(
-        req.user._id,
-        { $unset: { refreshToken: 1 } },
-        { new: true }
-    );
+    await clearStoredRefreshToken(req.user._id);
 
     return res
         .status(200)

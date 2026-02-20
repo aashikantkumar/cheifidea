@@ -1,6 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import { env } from "../config/env.js";
 
 const accountSchema = new Schema(
     {
@@ -63,9 +64,9 @@ accountSchema.methods.generateAccessToken = function () {
             email: this.email,
             role: this.role
         },
-        process.env.ACCESS_TOKEN_SECRET,
+        env.ACCESS_TOKEN_SECRET,
         {
-            expiresIn: process.env.ACCESS_TOKEN_EXPIRY
+            expiresIn: env.ACCESS_TOKEN_EXPIRY
         }
     );
 };
@@ -76,9 +77,9 @@ accountSchema.methods.generateRefreshToken = function () {
         {
             _id: this._id
         },
-        process.env.REFRESH_TOKEN_SECRET,
+        env.REFRESH_TOKEN_SECRET,
         {
-            expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+            expiresIn: env.REFRESH_TOKEN_EXPIRY
         }
     );
 };
