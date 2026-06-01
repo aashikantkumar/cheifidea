@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { Account } from "../../models/account.model.js";
 import { ChefProfile } from "../../models/chefProfile.model.js";
@@ -5,9 +6,13 @@ import { ApiError } from "../../utils/ApiError.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { uploadOnCloudinary } from "../../utils/cloudinary.js";
 import { generateTokens, findChefWithProfile } from "../../services/chef.service.js";
-import { clearStoredRefreshToken } from "../../services/auth.service.js";
-
-const COOKIE_OPTIONS = { httpOnly: true, secure: true };
+import { clearStoredRefreshToken, isRefreshTokenValid, issueAuthTokens } from "../../services/auth.service.js";
+import { env } from "../../config/env.js";
+import {
+    accessTokenCookieOptions,
+    clearCookieOptions,
+    refreshTokenCookieOptions,
+} from "../../config/cookie.js";
 
 // ─── Register Chef ─────────────────────────────────────────────
 export const registerChef = asyncHandler(async (req, res) => {
@@ -100,9 +105,9 @@ export const registerChef = asyncHandler(async (req, res) => {
 
     return res
         .status(201)
-        .cookie("accessToken", accessToken, COOKIE_OPTIONS)
-        .cookie("refreshToken", refreshToken, COOKIE_OPTIONS)
-        .json(new ApiResponse(201, { chef: createdChef, accessToken, refreshToken }, "Chef registered successfully"));
+        .cookie("accessToken", accessToken, accessTokenCookieOptions)
+        .cookie("refreshToken", refreshToken, refreshTokenCookieOptions)
+        .json(new ApiResponse(201, { user: createdChef, accessToken }, "Chef registered successfully"));
 });
 
 // ─── Login Chef ────────────────────────────────────────────────
@@ -124,9 +129,9 @@ export const loginChef = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .cookie("accessToken", accessToken, COOKIE_OPTIONS)
-        .cookie("refreshToken", refreshToken, COOKIE_OPTIONS)
-        .json(new ApiResponse(200, { chef: loggedInChef, accessToken, refreshToken }, "Chef logged in successfully"));
+        .cookie("accessToken", accessToken, accessTokenCookieOptions)
+        .cookie("refreshToken", refreshToken, refreshTokenCookieOptions)
+        .json(new ApiResponse(200, { user: loggedInChef, accessToken }, "Chef logged in successfully"));
 });
 
 // ─── Logout Chef ───────────────────────────────────────────────
@@ -135,7 +140,46 @@ export const logoutChef = asyncHandler(async (req, res) => {
 
     return res
         .status(200)
-        .clearCookie("accessToken", COOKIE_OPTIONS)
-        .clearCookie("refreshToken", COOKIE_OPTIONS)
+        .clearCookie("accessToken", clearCookieOptions)
+        .clearCookie("refreshToken", clearCookieOptions)
         .json(new ApiResponse(200, {}, "Chef logged out successfully"));
+});
+
+// ─── Refresh Access Token ──────────────────────────────────────
+export const refreshChefAccessToken = asyncHandler(async (req, res) => {
+    const incomingRefreshToken =
+        req.cookies?.refreshToken || req.body.refreshToken;
+
+    if (!incomingRefreshToken) {
+        throw new ApiError(401, "Unauthorized request");
+    }
+
+    const decodedToken = jwt.verify(
+        incomingRefreshToken,
+        env.REFRESH_TOKEN_SECRET
+    );
+
+    const account = await Account.findById(decodedToken?._id);
+    if (!account || account.role !== "chef") {
+        throw new ApiError(401, "Invalid refresh token");
+    }
+
+    if (!isRefreshTokenValid(account, incomingRefreshToken)) {
+        throw new ApiError(401, "Refresh token is expired or used");
+    }
+
+    const { accessToken, refreshToken: newRefreshToken } =
+        await issueAuthTokens(account._id);
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, accessTokenCookieOptions)
+        .cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions)
+        .json(
+            new ApiResponse(
+                200,
+                { accessToken },
+                "Access token refreshed successfully"
+            )
+        );
 });

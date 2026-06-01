@@ -5,6 +5,7 @@ import {
     registerChef,
     loginChef,
     logoutChef,
+    refreshChefAccessToken,
     getChefProfile,
     updateChefProfile,
     addDish,
@@ -22,6 +23,7 @@ const router = Router();
 // ─── Public Routes ─────────────────────────────────────────────
 router.route("/register").post(uploadChefRegistrationFiles, registerChef);
 router.route("/login").post(loginChef);
+router.route("/refresh-token").post(refreshChefAccessToken);
 
 // ─── Protected Routes (Chef Only) ─────────────────────────────
 router.route("/logout").post(verifyJWT, verifyChef, logoutChef);
